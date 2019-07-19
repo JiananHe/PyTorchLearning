@@ -7,7 +7,7 @@ from train import load_data, imshow, Net
 if __name__ == "__main__":
     batch_size = 4
     # load data
-    _, testloader, classes = load_data(batch_size)
+    _, _, testloader, classes = load_data(batch_size)
 
     dataiter = iter(testloader)
     images, labels = dataiter.next()

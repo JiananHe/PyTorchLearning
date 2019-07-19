@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from PIL import Image
+from torch.utils.data.sampler import SubsetRandomSampler
 
 
 class Rescale(object):
@@ -67,16 +68,26 @@ def load_data(batch_size):
     # testset = torchvision.datasets.MNIST(root='./data', train=False,
     #                                      download=True, transform=transform)
 
+    # randomly splitting validation and test dataset indices
+    set_len = len(testset)
+    indices = list(range(set_len))
+    val_ratio = 0.2
+    val_len = int(val_ratio * set_len)
+    val_indices = np.random.choice(indices, size=val_len, replace=False)  # replace=false, 抽样后不放回，若为true，可能有重复
+    test_indices = list(set(indices) - set(val_indices))
+
     # num_workers: 设置多进程提取数据
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
                                               shuffle=True, num_workers=2)
+    validloader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
+                                              shuffle=False, num_workers=2, sampler=SubsetRandomSampler(val_indices))
     testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
-                                             shuffle=False, num_workers=2)
+                                             shuffle=False, num_workers=2, sampler=SubsetRandomSampler(test_indices))
 
     classes = ('plane', 'car', 'bird', 'cat',
                'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
-    return trainloader, testloader, classes
+    return trainloader, validloader, testloader, classes
 
 
 def imshow(img):
@@ -107,10 +118,28 @@ class Net(nn.Module):
         return x
 
 
+def valid(model, validloader, criterion, device):
+    # switch model to evaluation mode
+    model.eval()
+
+    valid_loss = 0.0
+    n = 0
+    with torch.no_grad():
+        for data in validloader:
+            images, labels = data[0].to(device), data[1].to(device)
+            outputs = net(images)
+
+            loss = criterion(outputs, labels)
+            valid_loss += loss.item()
+            n += 1
+
+    return valid_loss / n
+
+
 if __name__ == "__main__":
     batch_size = 16
     # download and set data loader
-    trainloader, testloader, classes = load_data(batch_size)
+    trainloader, validloader, testloader, classes = load_data(batch_size)
 
     # show some images
     # get some random training images
@@ -134,16 +163,17 @@ if __name__ == "__main__":
     net.to(device)
 
     running_loss = 0.0
-    img_sum = 0
-    for epoch in range(2):
+    train_losses = []
+    valid_losses = []
+    total_epoch = 20
+    for epoch in range(total_epoch):
         for i, data in enumerate(trainloader, 0):
             # get one batch
             # inputs, labels = data
             inputs, labels = data[0].to(device), data[1].to(device)
-            num = inputs.size()[0]
-            img_sum += num
 
-            # zero the parameter gradients
+            # switch model to training mode, clear gradient accumulators
+            net.train()
             optimizer.zero_grad()
 
             # forward + backward + optimize
@@ -154,9 +184,12 @@ if __name__ == "__main__":
 
             # print statistics
             running_loss += loss.item()
-            if i % 500 == 499:  # print every 125 mini-batches
-                print('[%d, %5d] loss: %.3f' %
-                      (epoch + 1, i + 1, running_loss / 500))
+            if i % 125 == 124:  # print and valid every 125 mini-batches, 50,000 / 16 / 125 = 25 outputs
+                # validate model in validation dataset
+                valid_loss = valid(net, validloader, criterion, device)
+                print('[%d, %5d] train loss: %.3f,  validset loss: %.3f' % (epoch + 1, i + 1, running_loss / 125, valid_loss))
+                train_losses.append(running_loss / 125)
+                valid_losses.append(valid_loss)
                 running_loss = 0.0
 
         # save checkpoint
@@ -167,7 +200,18 @@ if __name__ == "__main__":
             'loss': loss
         }, "./checkpoints/epoch_" + str(epoch) + ".tar")
 
-    print('Finished Training, %d images in all' % img_sum / epoch)
+    print('Finished Training, %d images in all' % (len(train_losses)*batch_size*125/total_epoch))
+
+    # draw loss curve
+    assert len(train_losses) == len(valid_losses)
+    loss_x = range(0, len(train_losses))
+    plt.plot(loss_x, train_losses, label="train loss")
+    plt.plot(loss_x, valid_losses, label="valid loss")
+    plt.title("Loss for every 125 mini-batch")
+    plt.xlabel("125 mini-batches")
+    plt.ylabel("Loss")
+    plt.legend()
+    plt.show()
 
     # save parameters
     torch.save(net.state_dict(), "./model/parameter.pt")
