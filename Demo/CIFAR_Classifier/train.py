@@ -7,7 +7,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from PIL import Image
-import skimage
 
 
 class Rescale(object):
@@ -26,7 +25,14 @@ class Rescale(object):
         self.interpolation = interpolation
 
     def __call__(self, img):
-        h, w = img.shape[:2]
+        """
+        Args:
+            img (PIL Image): Image to be scaled. img.format, img.size, img.mode
+
+        Returns:
+            PIL Image: Rescaled image.
+        """
+        h, w = img.size[:2]
         if isinstance(self.size, int):
             if h > w:
                 new_w = self.size
@@ -37,7 +43,7 @@ class Rescale(object):
         else:
             new_h, new_w = self.size, self.size
 
-        return skimage.transfrom.resize(img, (int(new_h), int(new_w)))
+        return img.resize((int(new_h), int(new_w)), self.interpolation)
 
 
 def load_data(batch_size):
@@ -46,8 +52,9 @@ def load_data(batch_size):
 
     # Composes several transforms together.
     # Normalize: input[channel] = (input[channel] - mean[channel]) / std[channel]
-    transform = transforms.Compose([transforms.Resize(32),
-                                    transforms.RandomHorizontalFlip(),
+    transform = transforms.Compose([Rescale(32),
+                                    # transforms.Resize(32),  # img should be PIL Image.
+                                    transforms.RandomHorizontalFlip(),  # img should be PIL Image.
                                     transforms.ToTensor(),
                                     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
@@ -160,7 +167,7 @@ if __name__ == "__main__":
             'loss': loss
         }, "./checkpoints/epoch_" + str(epoch) + ".tar")
 
-    print('Finished Training, %d images in all' % img_sum)
+    print('Finished Training, %d images in all' % img_sum / epoch)
 
     # save parameters
     torch.save(net.state_dict(), "./model/parameter.pt")
