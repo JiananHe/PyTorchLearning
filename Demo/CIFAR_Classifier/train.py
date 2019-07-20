@@ -98,9 +98,9 @@ def imshow(img):
     plt.show()
 
 
-class Net(nn.Module):
+class LeNet(nn.Module):
     def __init__(self, input_channel):
-        super(Net, self).__init__()
+        super(LeNet, self).__init__()
         self.conv1 = nn.Conv2d(input_channel, 6, 5)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(6, 16, 5)
@@ -151,7 +151,10 @@ if __name__ == "__main__":
     print(' '.join('%5s' % classes[labels[j]] for j in range(batch_size)))
 
     # create net
-    net = Net(3)
+    net = LeNet(3)
+    # resume training
+    net.load_state_dict(torch.load("./model/parameter.pt"))
+    net.train()
 
     # define loss function and optimizer
     criterion = nn.CrossEntropyLoss()
@@ -165,7 +168,8 @@ if __name__ == "__main__":
     running_loss = 0.0
     train_losses = []
     valid_losses = []
-    total_epoch = 20
+    total_epoch = 1
+    mini_batches = 125 * 5
     for epoch in range(total_epoch):
         for i, data in enumerate(trainloader, 0):
             # get one batch
@@ -184,11 +188,11 @@ if __name__ == "__main__":
 
             # print statistics
             running_loss += loss.item()
-            if i % 125 == 124:  # print and valid every 125 mini-batches, 50,000 / 16 / 125 = 25 outputs
+            if i % mini_batches == mini_batches - 1:  # print and valid every <mini_batches> mini-batche
                 # validate model in validation dataset
                 valid_loss = valid(net, validloader, criterion, device)
-                print('[%d, %5d] train loss: %.3f,  validset loss: %.3f' % (epoch + 1, i + 1, running_loss / 125, valid_loss))
-                train_losses.append(running_loss / 125)
+                print('[%d, %5d] train loss: %.3f,  validset loss: %.3f' % (epoch + 1, i + 1, running_loss / mini_batches, valid_loss))
+                train_losses.append(running_loss / mini_batches)
                 valid_losses.append(valid_loss)
                 running_loss = 0.0
 
@@ -200,15 +204,15 @@ if __name__ == "__main__":
             'loss': loss
         }, "./checkpoints/epoch_" + str(epoch) + ".tar")
 
-    print('Finished Training, %d images in all' % (len(train_losses)*batch_size*125/total_epoch))
+    print('Finished Training, %d images in all' % (len(train_losses)*batch_size*mini_batches/total_epoch))
 
     # draw loss curve
     assert len(train_losses) == len(valid_losses)
     loss_x = range(0, len(train_losses))
     plt.plot(loss_x, train_losses, label="train loss")
     plt.plot(loss_x, valid_losses, label="valid loss")
-    plt.title("Loss for every 125 mini-batch")
-    plt.xlabel("125 mini-batches")
+    plt.title("Loss for every %d mini-batch" % mini_batches)
+    plt.xlabel("%d mini-batches" % mini_batches)
     plt.ylabel("Loss")
     plt.legend()
     plt.show()

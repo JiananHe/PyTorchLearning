@@ -1,7 +1,7 @@
 import torch
 import torchvision
 import numpy as np
-from train import load_data, imshow, Net
+from train import load_data, imshow, LeNet
 
 
 if __name__ == "__main__":
