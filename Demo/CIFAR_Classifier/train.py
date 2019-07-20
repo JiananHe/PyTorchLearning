@@ -4,10 +4,13 @@ import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
 import numpy as np
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
 from PIL import Image
 from torch.utils.data.sampler import SubsetRandomSampler
+import os
+
+from lenet import LeNet
+from vgg16 import VGG16
 
 
 class Rescale(object):
@@ -53,16 +56,19 @@ def load_data(batch_size):
 
     # Composes several transforms together.
     # Normalize: input[channel] = (input[channel] - mean[channel]) / std[channel]
-    transform = transforms.Compose([Rescale(32),
-                                    # transforms.Resize(32),  # img should be PIL Image.
-                                    transforms.RandomHorizontalFlip(),  # img should be PIL Image.
-                                    transforms.ToTensor(),
-                                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+    transform_train = transforms.Compose([Rescale(32),
+                                          # transforms.Resize(32),  # img should be PIL Image.
+                                          transforms.RandomHorizontalFlip(),  # img should be PIL Image.
+                                          transforms.ToTensor(),
+                                          transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+
+    transform_val = transforms.Compose([transforms.ToTensor(),
+                                        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
     trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
-                                            download=True, transform=transform)
+                                            download=True, transform=transform_train)
     testset = torchvision.datasets.CIFAR10(root='./data', train=False,
-                                           download=True, transform=transform)
+                                           download=True, transform=transform_val)
     # trainset = torchvision.datasets.MNIST(root='./data', train=True,
     #                                       download=True, transform=transform)
     # testset = torchvision.datasets.MNIST(root='./data', train=False,
@@ -73,6 +79,7 @@ def load_data(batch_size):
     indices = list(range(set_len))
     val_ratio = 0.2
     val_len = int(val_ratio * set_len)
+    np.random.seed(1000)
     val_indices = np.random.choice(indices, size=val_len, replace=False)  # replace=false, 抽样后不放回，若为true，可能有重复
     test_indices = list(set(indices) - set(val_indices))
 
@@ -98,26 +105,6 @@ def imshow(img):
     plt.show()
 
 
-class LeNet(nn.Module):
-    def __init__(self, input_channel):
-        super(LeNet, self).__init__()
-        self.conv1 = nn.Conv2d(input_channel, 6, 5)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5)
-        self.fc1 = nn.Linear(16 * 5 * 5, 120)  # 5*5是conv2经过pool之后的feature map的大小
-        self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 10)
-
-    def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = x.view(-1, 16 * 5 * 5)
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
-        return x
-
-
 def valid(model, validloader, criterion, device):
     # switch model to evaluation mode
     model.eval()
@@ -127,7 +114,7 @@ def valid(model, validloader, criterion, device):
     with torch.no_grad():
         for data in validloader:
             images, labels = data[0].to(device), data[1].to(device)
-            outputs = net(images)
+            outputs = model(images)
 
             loss = criterion(outputs, labels)
             valid_loss += loss.item()
@@ -136,25 +123,25 @@ def valid(model, validloader, criterion, device):
     return valid_loss / n
 
 
-if __name__ == "__main__":
-    batch_size = 16
-    # download and set data loader
-    trainloader, validloader, testloader, classes = load_data(batch_size)
-
-    # show some images
-    # get some random training images
-    dataiter = iter(trainloader)
-    images, labels = dataiter.next()  # get four(batch_size) samples
-    # images
-    imshow(torchvision.utils.make_grid(images))
-    # labels
-    print(' '.join('%5s' % classes[labels[j]] for j in range(batch_size)))
-
+def training(model_name, trainloader, validloader, input_channel=3, epochs=1, resume=True):
     # create net
-    net = LeNet(3)
+    assert model_name in ["LeNet", "VGG16"]
+    if model_name == "LeNet":
+        net = LeNet(input_channel)
+    elif model_name == "VGG16":
+        net = VGG16(input_channel)
+
     # resume training
-    net.load_state_dict(torch.load("./model/parameter.pt"))
-    net.train()
+    if resume:
+        param_path = "./model/" + model_name + "_parameter.pt"
+        if os.path.exists(param_path):
+            net.load_state_dict(torch.load(param_path))
+            net.train()
+            print("Resume training" + model_name)
+        else:
+            print("Train %s from scratch" % model_name)
+    else:
+        print("Train %s from scratch" % model_name)
 
     # define loss function and optimizer
     criterion = nn.CrossEntropyLoss()
@@ -168,9 +155,8 @@ if __name__ == "__main__":
     running_loss = 0.0
     train_losses = []
     valid_losses = []
-    total_epoch = 1
     mini_batches = 125 * 5
-    for epoch in range(total_epoch):
+    for epoch in range(epochs):
         for i, data in enumerate(trainloader, 0):
             # get one batch
             # inputs, labels = data
@@ -191,20 +177,21 @@ if __name__ == "__main__":
             if i % mini_batches == mini_batches - 1:  # print and valid every <mini_batches> mini-batche
                 # validate model in validation dataset
                 valid_loss = valid(net, validloader, criterion, device)
-                print('[%d, %5d] train loss: %.3f,  validset loss: %.3f' % (epoch + 1, i + 1, running_loss / mini_batches, valid_loss))
+                print('[%d, %5d] train loss: %.3f,  validset loss: %.3f' % (
+                    epoch + 1, i + 1, running_loss / mini_batches, valid_loss))
                 train_losses.append(running_loss / mini_batches)
                 valid_losses.append(valid_loss)
                 running_loss = 0.0
 
-        # save checkpoint
-        torch.save({
-            'epoch': epoch,
-            'model_state_dict': net.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'loss': loss
-        }, "./checkpoints/epoch_" + str(epoch) + ".tar")
+        # # save checkpoint
+        # torch.save({
+        #     'epoch': epoch,
+        #     'model_state_dict': net.state_dict(),
+        #     'optimizer_state_dict': optimizer.state_dict(),
+        #     'loss': loss
+        # }, "./checkpoints/epoch_" + str(epoch) + ".tar")
 
-    print('Finished Training, %d images in all' % (len(train_losses)*batch_size*mini_batches/total_epoch))
+    print('Finished Training, %d images in all' % (len(train_losses) * batch_size * mini_batches / epochs))
 
     # draw loss curve
     assert len(train_losses) == len(valid_losses)
@@ -218,6 +205,23 @@ if __name__ == "__main__":
     plt.show()
 
     # save parameters
-    torch.save(net.state_dict(), "./model/parameter.pt")
+    torch.save(net.state_dict(), "./model/" + model_name + "_parameter.pt")
     # save the whole model
-    torch.save(net, "./model/model.pt")
+    # torch.save(net, "./model/model.pt")
+
+
+if __name__ == "__main__":
+    batch_size = 16
+    # download and set data loader
+    trainloader, validloader, testloader, classes = load_data(batch_size)
+
+    # show some images
+    # get some random training images
+    dataiter = iter(trainloader)
+    images, labels = dataiter.next()  # get four(batch_size) samples
+    # images
+    imshow(torchvision.utils.make_grid(images))
+    # labels
+    print(' '.join('%5s' % classes[labels[j]] for j in range(batch_size)))
+
+    training("VGG16", trainloader, validloader)
