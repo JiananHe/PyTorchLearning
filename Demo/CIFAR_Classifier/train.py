@@ -225,4 +225,4 @@ if __name__ == "__main__":
     # labels
     print(' '.join('%5s' % classes[labels[j]] for j in range(batch_size)))
 
-    training("LeNet", trainloader, validloader)
+    training("VGG16", trainloader, validloader, epochs=60, resume=False)
