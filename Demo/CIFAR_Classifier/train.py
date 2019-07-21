@@ -174,7 +174,7 @@ def training(model_name, trainloader, validloader, input_channel=3, epochs=1, re
 
             # print statistics
             running_loss += loss.item()
-            if i % mini_batches == mini_batches - 1:  # print and valid every <mini_batches> mini-batche
+            if i % mini_batches == mini_batches - 1:  # print and valid every <mini_batches> mini-batches
                 # validate model in validation dataset
                 valid_loss = valid(net, validloader, criterion, device)
                 print('[%d, %5d] train loss: %.3f,  validset loss: %.3f' % (
@@ -202,6 +202,7 @@ def training(model_name, trainloader, validloader, input_channel=3, epochs=1, re
     plt.xlabel("%d mini-batches" % mini_batches)
     plt.ylabel("Loss")
     plt.legend()
+    plt.savefig(model_name + "_loss.png")
     plt.show()
 
     # save parameters
@@ -224,4 +225,4 @@ if __name__ == "__main__":
     # labels
     print(' '.join('%5s' % classes[labels[j]] for j in range(batch_size)))
 
-    training("VGG16", trainloader, validloader)
+    training("LeNet", trainloader, validloader)
