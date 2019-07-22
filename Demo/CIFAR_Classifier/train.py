@@ -11,6 +11,7 @@ import os
 
 from lenet import LeNet
 from vgg16 import VGG16
+from resnet import ResNet
 
 
 class Rescale(object):
@@ -125,11 +126,13 @@ def valid(model, validloader, criterion, device):
 
 def training(model_name, trainloader, validloader, input_channel=3, epochs=1, resume=True):
     # create net
-    assert model_name in ["LeNet", "VGG16"]
+    assert model_name in ["LeNet", "VGG16", "ResNet"]
     if model_name == "LeNet":
         net = LeNet(input_channel)
     elif model_name == "VGG16":
         net = VGG16(input_channel)
+    elif model_name == "ResNet":
+        net = ResNet(input_channel)
 
     # resume training
     if resume:
@@ -161,17 +164,17 @@ def training(model_name, trainloader, validloader, input_channel=3, epochs=1, re
             # get one batch
             # inputs, labels = data
             inputs, labels = data[0].to(device), data[1].to(device)
-
+    
             # switch model to training mode, clear gradient accumulators
             net.train()
             optimizer.zero_grad()
-
+    
             # forward + backward + optimize
             outputs = net(inputs)
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
-
+    
             # print statistics
             running_loss += loss.item()
             if i % mini_batches == mini_batches - 1:  # print and valid every <mini_batches> mini-batches
@@ -182,7 +185,7 @@ def training(model_name, trainloader, validloader, input_channel=3, epochs=1, re
                 train_losses.append(running_loss / mini_batches)
                 valid_losses.append(valid_loss)
                 running_loss = 0.0
-
+    
         # # save checkpoint
         # torch.save({
         #     'epoch': epoch,
@@ -190,9 +193,9 @@ def training(model_name, trainloader, validloader, input_channel=3, epochs=1, re
         #     'optimizer_state_dict': optimizer.state_dict(),
         #     'loss': loss
         # }, "./checkpoints/epoch_" + str(epoch) + ".tar")
-
+    
     print('Finished Training, %d images in all' % (len(train_losses) * batch_size * mini_batches / epochs))
-
+    
     # draw loss curve
     assert len(train_losses) == len(valid_losses)
     loss_x = range(0, len(train_losses))
@@ -204,7 +207,7 @@ def training(model_name, trainloader, validloader, input_channel=3, epochs=1, re
     plt.legend()
     plt.savefig(model_name + "_loss.png")
     plt.show()
-
+    
     # save parameters
     torch.save(net.state_dict(), "./model/" + model_name + "_parameter.pt")
     # save the whole model
@@ -225,4 +228,4 @@ if __name__ == "__main__":
     # labels
     print(' '.join('%5s' % classes[labels[j]] for j in range(batch_size)))
 
-    training("VGG16", trainloader, validloader, epochs=60, resume=False)
+    training("ResNet", trainloader, validloader, epochs=60, resume=False)

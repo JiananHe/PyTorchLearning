@@ -5,6 +5,7 @@ import numpy as np
 from train import load_data, imshow
 from lenet import LeNet
 from vgg16 import VGG16
+from resnet import ResNet
 
 
 def evalidation(model_name, testloader, classes, input_channel=3):
@@ -16,12 +17,14 @@ def evalidation(model_name, testloader, classes, input_channel=3):
     print('GroundTruth: ', ' '.join('%5s' % classes[labels[j]] for j in range(batch_size)))
 
     # load model parameter
-    assert model_name in ["LeNet", "VGG16"]
+    assert model_name in ["LeNet", "VGG16", "ResNet"]
     param_path = "./model/" + model_name + "_parameter.pt"
     if model_name == "LeNet":
         net = LeNet(input_channel)
     elif model_name == "VGG16":
         net = VGG16(input_channel)
+    elif model_name == "ResNet":
+        net = ResNet(input_channel)
     net.load_state_dict(torch.load(param_path))
     net.eval()
 
@@ -60,7 +63,7 @@ if __name__ == "__main__":
     # load data
     _, _, testloader, classes = load_data(batch_size)
 
-    evalidation("VGG16", testloader, classes)
+    evalidation("ResNet", testloader, classes)
 
 
 
