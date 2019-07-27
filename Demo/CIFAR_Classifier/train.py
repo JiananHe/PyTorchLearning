@@ -1,6 +1,7 @@
 import torch
 import torchvision
 import torchvision.transforms as transforms
+import torchvision.models as models
 import matplotlib.pyplot as plt
 import numpy as np
 import torch.nn as nn
@@ -12,7 +13,7 @@ import os
 from lenet import LeNet
 from vgg16 import VGG16
 from resnet import ResNet
-
+from densenet import DenseNet
 
 class Rescale(object):
     """Rescale the image in a sample to a given size.
@@ -124,23 +125,44 @@ def valid(model, validloader, criterion, device):
     return valid_loss / n
 
 
-def training(model_name, trainloader, validloader, input_channel=3, epochs=1, resume=True):
-    # create net
-    assert model_name in ["LeNet", "VGG16", "ResNet"]
-    if model_name == "LeNet":
-        net = LeNet(input_channel)
-    elif model_name == "VGG16":
-        net = VGG16(input_channel)
-    elif model_name == "ResNet":
-        net = ResNet(input_channel)
+def training(model_name, trainloader, validloader, input_channel=3, epochs=1, resume=True, self_define=True, only_print=False):
+    # load self defined or official net
+    assert model_name in ["LeNet", "VGG16", "ResNet", "DenseNet"]
+
+    if self_define:
+        if model_name == "LeNet":
+            net = LeNet(input_channel)
+        elif model_name == "VGG16":
+            net = VGG16(input_channel)
+        elif model_name == "ResNet":
+            net = ResNet(input_channel)
+        elif model_name == "DenseNet":
+            net = DenseNet(input_channel)
+    else:
+        if model_name == "LeNet":
+            net = LeNet(input_channel)  # on official LeNet
+        elif model_name == "VGG16":
+            net = models.vgg16_bn(pretrained=False, num_classes=10)
+        elif model_name == "ResNet":
+            net = models.resnet50(pretrained=False, num_classes=10)
+        elif model_name == "DenseNet":
+            net = models.DenseNet(num_classes=10)
+
+    # sum of net parameters number
+    print("Number of trainable parameters in %s : %f" % (model_name, sum(p.numel() for p in net.parameters() if p.requires_grad)))
+
+    # print model structure
+    if only_print:
+        print(net)
+        return
 
     # resume training
+    param_path = "./model/%s_%s_parameter.pt" % (model_name, "define" if self_define else "official")
     if resume:
-        param_path = "./model/" + model_name + "_parameter.pt"
         if os.path.exists(param_path):
             net.load_state_dict(torch.load(param_path))
             net.train()
-            print("Resume training" + model_name)
+            print("Resume training " + model_name)
         else:
             print("Train %s from scratch" % model_name)
     else:
@@ -185,7 +207,10 @@ def training(model_name, trainloader, validloader, input_channel=3, epochs=1, re
                 train_losses.append(running_loss / mini_batches)
                 valid_losses.append(valid_loss)
                 running_loss = 0.0
-    
+
+        # save parameters
+        torch.save(net.state_dict(), param_path)
+
         # # save checkpoint
         # torch.save({
         #     'epoch': epoch,
@@ -207,9 +232,7 @@ def training(model_name, trainloader, validloader, input_channel=3, epochs=1, re
     plt.legend()
     plt.savefig(model_name + "_loss.png")
     plt.show()
-    
-    # save parameters
-    torch.save(net.state_dict(), "./model/" + model_name + "_parameter.pt")
+
     # save the whole model
     # torch.save(net, "./model/model.pt")
 
@@ -228,4 +251,4 @@ if __name__ == "__main__":
     # labels
     print(' '.join('%5s' % classes[labels[j]] for j in range(batch_size)))
 
-    training("ResNet", trainloader, validloader, epochs=60, resume=False)
+    training("VGG16", trainloader, validloader, epochs=60, resume=False, self_define=True, only_print=False)

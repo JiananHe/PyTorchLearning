@@ -10,12 +10,15 @@ class VGG16(nn.Module):
         super(VGG16, self).__init__()
         self.input_channel = input_channel
         self.conv_layers = self.make_layers(vgg16_config)
+
+        # 由于输入size不确定，所以在进行Linear之前，可以通过AdaptiveAvgPool2d来固定feature map size
         self.classifier = nn.Sequential(nn.Linear(512, 10),
                                         nn.Softmax(1))
 
     def forward(self, x):
         x = self.conv_layers(x)
-        x = x.view(-1, 512)  # the output size of conv layers should be 512*1
+        # x = x.view(-1, 512)  # the output size of conv layers should be 512*1
+        x = x.view(x.size(0), -1)
         x = self.classifier(x)
 
         return x

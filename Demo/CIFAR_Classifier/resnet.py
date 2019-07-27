@@ -62,6 +62,7 @@ class ResNet(nn.Module):
 
     def make_layers(self, cfg):
         """
+        cfg: res block numbers
         (64 --> 256 conv s=1) --> (64 --> 256 sc) * 2 -->
         (128 --> 512 conv s=2) --> (128 --> 512 sc) * 3 -->
         (256 --> 1024 conv s=2) --> (256 --> 1024 sc) * 3-->

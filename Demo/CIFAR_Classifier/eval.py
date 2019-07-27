@@ -3,12 +3,14 @@ import torchvision
 import numpy as np
 
 from train import load_data, imshow
+import torchvision.models as models
+
 from lenet import LeNet
 from vgg16 import VGG16
 from resnet import ResNet
+from densenet import DenseNet
 
-
-def evalidation(model_name, testloader, classes, input_channel=3):
+def evalidation(model_name, testloader, classes, input_channel=3, self_define=True):
     dataiter = iter(testloader)
     images, labels = dataiter.next()
 
@@ -17,14 +19,29 @@ def evalidation(model_name, testloader, classes, input_channel=3):
     print('GroundTruth: ', ' '.join('%5s' % classes[labels[j]] for j in range(batch_size)))
 
     # load model parameter
-    assert model_name in ["LeNet", "VGG16", "ResNet"]
-    param_path = "./model/" + model_name + "_parameter.pt"
-    if model_name == "LeNet":
-        net = LeNet(input_channel)
-    elif model_name == "VGG16":
-        net = VGG16(input_channel)
-    elif model_name == "ResNet":
-        net = ResNet(input_channel)
+    assert model_name in ["LeNet", "VGG16", "ResNet", "DenseNet"]
+    param_path = "./model/%s_%s_parameter.pt" % (model_name, "define" if self_define else "official")
+    print("load model parameter from %s" % param_path)
+    if self_define:
+        if model_name == "LeNet":
+            net = LeNet(input_channel)
+        elif model_name == "VGG16":
+            net = VGG16(input_channel)
+        elif model_name == "ResNet":
+            net = ResNet(input_channel)
+        elif model_name == "DenseNet":
+            net = DenseNet(input_channel)
+    else:
+        if model_name == "LeNet":
+            net = LeNet(input_channel)
+        elif model_name == "VGG16":
+            net = models.vgg16_bn(pretrained=False, num_classes=10)
+        elif model_name == "ResNet":
+            net = models.resnet50(pretrained=False, num_classes=10)
+        elif model_name == "DenseNet":
+            net = models.DenseNet(num_classes=10)
+
+
     net.load_state_dict(torch.load(param_path))
     net.eval()
 
@@ -63,7 +80,7 @@ if __name__ == "__main__":
     # load data
     _, _, testloader, classes = load_data(batch_size)
 
-    evalidation("ResNet", testloader, classes)
+    evalidation("ResNet", testloader, classes, self_define=True)
 
 
 

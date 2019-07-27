@@ -3,6 +3,6 @@
 __pycache__
 
 checkpoints/
-**/model/*
-!**/model/*parameter.pt
+model/
+*.png
 data/
